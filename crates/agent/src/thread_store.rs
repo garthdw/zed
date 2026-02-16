@@ -163,6 +163,7 @@ mod tests {
             imported: false,
             subagent_context: None,
             git_worktree_info: None,
+            todos: Vec::new(),
         }
     }
 

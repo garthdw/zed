@@ -70,6 +70,7 @@ pub struct DbThread {
     pub subagent_context: Option<crate::SubagentContext>,
     #[serde(default)]
     pub git_worktree_info: Option<AgentGitWorktreeInfo>,
+    pub todos: Vec<Todo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,6 +110,7 @@ impl SharedThread {
             imported: true,
             subagent_context: None,
             git_worktree_info: None,
+            todos: Vec::new(),
         }
     }
 
@@ -284,8 +286,34 @@ impl DbThread {
             imported: false,
             subagent_context: None,
             git_worktree_info: None,
+            todos: Vec::new(),
         })
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Ord, PartialOrd)]
+#[serde(rename_all = "snake_case")]
+pub enum TodoStatus {
+    Pending,
+    InProgress,
+    Completed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Ord, PartialOrd)]
+#[serde(rename_all = "snake_case")]
+pub enum TodoPriority {
+    Low,
+    Medium,
+    High,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Todo {
+    pub id: String,
+    pub text: String,
+    pub status: TodoStatus,
+    pub priority: TodoPriority,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -610,6 +638,7 @@ mod tests {
             imported: false,
             subagent_context: None,
             git_worktree_info: None,
+            todos: Vec::new(),
         }
     }
 

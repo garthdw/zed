@@ -904,6 +904,8 @@ pub struct Thread {
     running_subagents: Vec<WeakEntity<Thread>>,
     /// Git worktree info if this thread is running in an agent worktree.
     git_worktree_info: Option<AgentGitWorktreeInfo>,
+    /// Todos associated with this thread
+    pub todos: Vec<Todo>,
 }
 
 impl Thread {
@@ -995,6 +997,7 @@ impl Thread {
             subagent_context: None,
             running_subagents: Vec::new(),
             git_worktree_info: None,
+            todos: Vec::new(),
         }
     }
 
@@ -1220,6 +1223,7 @@ impl Thread {
             subagent_context: db_thread.subagent_context,
             running_subagents: Vec::new(),
             git_worktree_info: db_thread.git_worktree_info,
+            todos: db_thread.todos,
         }
     }
 
@@ -1241,6 +1245,7 @@ impl Thread {
             imported: self.imported,
             subagent_context: self.subagent_context.clone(),
             git_worktree_info: self.git_worktree_info.clone(),
+            todos: self.todos.clone(),
         };
 
         cx.background_spawn(async move {
@@ -1378,6 +1383,7 @@ impl Thread {
         self.add_tool(RestoreFileFromDiskTool::new(self.project.clone()));
         self.add_tool(TerminalTool::new(self.project.clone(), environment.clone()));
         self.add_tool(WebSearchTool);
+        self.add_tool(TodoTool::new(cx.weak_entity()));
 
         if cx.has_flag::<SubagentsFeatureFlag>() && self.depth() < MAX_SUBAGENT_DEPTH {
             self.add_tool(SpawnAgentTool::new(cx.weak_entity(), environment));
