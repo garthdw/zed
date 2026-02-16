@@ -325,7 +325,7 @@ impl ExampleInstance {
                 thread.update(cx, |thread, cx| {
                     thread.add_default_tools(Rc::new(EvalThreadEnvironment {
                         project: project.clone(),
-                    }), cx);
+                    }), cx, None);
                     thread.set_profile(meta.profile_id.clone(), cx);
                     thread.set_model(
                         LanguageModelInterceptor::new(

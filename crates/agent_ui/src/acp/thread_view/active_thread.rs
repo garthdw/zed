@@ -2117,7 +2117,7 @@ impl AcpThreadView {
                     )
                 })
         } else {
-            let status_label = if stats.pending == 0 {
+            let status_label = if stats.pending == 0 && stats.in_progress_entry.is_none() {
                 "All Done".to_string()
             } else if stats.completed == 0 {
                 format!("{} Tasks", plan.entries.len())
@@ -4796,6 +4796,14 @@ impl AcpThreadView {
         window: &Window,
         cx: &Context<Self>,
     ) -> Div {
+        // Hide certain tool calls by name - they integrate with other UI components (like Plan)
+        let hidden_tool_names = ["todo"];
+        if let Some(name) = &tool_call.tool_name {
+            if hidden_tool_names.contains(&name.as_ref()) {
+                return div();
+            }
+        }
+
         let has_location = tool_call.locations.len() == 1;
         let card_header_id = SharedString::from("inner-tool-call-header");
 
