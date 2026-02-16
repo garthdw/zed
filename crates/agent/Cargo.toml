@@ -19,6 +19,7 @@ workspace = true
 
 [dependencies]
 acp_thread.workspace = true
+markdown.workspace = true
 action_log.workspace = true
 agent-client-protocol.workspace = true
 agent_servers.workspace = true

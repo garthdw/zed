@@ -1852,6 +1852,11 @@ impl AcpThread {
         cx.notify();
     }
 
+    pub fn set_plan(&mut self, entries: Vec<PlanEntry>, cx: &mut Context<Self>) {
+        self.plan.entries = entries;
+        cx.notify();
+    }
+
     fn clear_completed_plan_entries(&mut self, cx: &mut Context<Self>) {
         self.plan
             .entries

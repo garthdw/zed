@@ -39,6 +39,7 @@ use gpui::{
     App, AppContext, AsyncApp, Context, Entity, SharedString, Subscription, Task, WeakEntity,
 };
 use language_model::{IconOrSvg, LanguageModel, LanguageModelProvider, LanguageModelRegistry};
+use markdown;
 use project::{Project, ProjectItem, ProjectPath, Worktree};
 use prompt_store::{
     ProjectContext, PromptStore, RULES_FILE_NAMES, RulesFileContext, UserRulesContext,
@@ -378,8 +379,39 @@ impl NativeAgent {
                     agent: weak,
                 }) as _,
                 cx,
+                Some(acp_thread.downgrade()),
             )
         });
+
+        let todos = thread_handle.read(cx).todos.clone();
+        if !todos.is_empty() {
+            let plan_entries: Vec<acp_thread::PlanEntry> = todos
+                .iter()
+                .map(|todo| {
+                    let content = cx.new(|cx| {
+                        markdown::Markdown::new(todo.text.clone().into(), None, None, cx)
+                    });
+                    let priority = match todo.priority {
+                        crate::db::TodoPriority::Low => acp::PlanEntryPriority::Low,
+                        crate::db::TodoPriority::Medium => acp::PlanEntryPriority::Medium,
+                        crate::db::TodoPriority::High => acp::PlanEntryPriority::High,
+                    };
+                    let status = match todo.status {
+                        crate::db::TodoStatus::Pending => acp::PlanEntryStatus::Pending,
+                        crate::db::TodoStatus::InProgress => acp::PlanEntryStatus::InProgress,
+                        crate::db::TodoStatus::Completed => acp::PlanEntryStatus::Completed,
+                    };
+                    acp_thread::PlanEntry {
+                        content,
+                        priority,
+                        status,
+                    }
+                })
+                .collect();
+            acp_thread.update(cx, |acp_thread, cx| {
+                acp_thread.set_plan(plan_entries, cx);
+            });
+        }
 
         let subscriptions = vec![
             cx.subscribe(&thread_handle, Self::handle_thread_title_updated),
