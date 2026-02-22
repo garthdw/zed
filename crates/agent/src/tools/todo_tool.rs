@@ -112,101 +112,127 @@ impl AgentTool for TodoTool {
         input: Self::Input,
         _event_stream: ToolCallEventStream,
         cx: &mut App,
-    ) -> Task<Result<Self::Output>> {
+    ) -> Task<Result<Self::Output, Self::Output>> {
         let thread = self.thread.clone();
         let acp_thread = self.acp_thread.clone();
-        cx.spawn(async move |cx| match input.command.as_str() {
-            "read_todos" => {
-                log::info!("Todo tool: reading todos");
-                let todos =
-                    thread.read_with(cx, |thread: &Thread, _| format_todos(&thread.todos))?;
-                Ok(todos.into())
-            }
-            "add_todo" => {
-                let text = input
-                    .text
-                    .ok_or_else(|| anyhow::anyhow!("text is required for add_todo"))?;
-                log::info!("Todo tool: adding todo - {}", text);
-                let priority = input
-                    .priority
-                    .as_ref()
-                    .and_then(|p| parse_priority(p))
-                    .unwrap_or(TodoPriority::Medium);
-                let id = Uuid::new_v4().to_string();
-                let todo = Todo {
-                    id,
-                    text,
-                    status: TodoStatus::Pending,
-                    priority,
-                    created_at: Utc::now(),
-                };
-                thread.update(cx, |thread: &mut Thread, _| {
-                    thread.todos.push(todo);
-                })?;
-                sync_plan(&thread, &acp_thread, cx)?;
-                let todos =
-                    thread.read_with(cx, |thread: &Thread, _| format_todos(&thread.todos))?;
-                Ok(todos.into())
-            }
-            "update_todo" => {
-                let id = input
-                    .id
-                    .ok_or_else(|| anyhow::anyhow!("id is required for update_todo"))?;
-                log::info!("Todo tool: updating todo id={}", id);
-                let mut found = false;
-                thread.update(cx, |thread: &mut Thread, _| {
-                    if let Some(todo) = thread.todos.iter_mut().find(|t| t.id == id) {
-                        if let Some(status) = &input.status {
-                            if let Some(s) = parse_status(status) {
-                                todo.status = s;
+        cx.spawn(async move |cx| -> Result<LanguageModelToolResultContent, LanguageModelToolResultContent> {
+            match input.command.as_str() {
+                "read_todos" => {
+                    log::info!("Todo tool: reading todos");
+                    let todos = thread
+                        .read_with(cx, |thread: &Thread, _| format_todos(&thread.todos))
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    Ok(LanguageModelToolResultContent::from(todos))
+                }
+                "add_todo" => {
+                    let text = input
+                        .text
+                        .ok_or_else(|| anyhow::anyhow!("text is required for add_todo"))
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    log::info!("Todo tool: adding todo - {}", text);
+                    let priority = input
+                        .priority
+                        .as_ref()
+                        .and_then(|p| parse_priority(p))
+                        .unwrap_or(TodoPriority::Medium);
+                    let id = Uuid::new_v4().to_string();
+                    let todo = Todo {
+                        id,
+                        text,
+                        status: TodoStatus::Pending,
+                        priority,
+                        created_at: Utc::now(),
+                    };
+                    thread
+                        .update(cx, |thread: &mut Thread, _| {
+                            thread.todos.push(todo);
+                        })
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    sync_plan(&thread, &acp_thread, cx).map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    let todos = thread
+                        .read_with(cx, |thread: &Thread, _| format_todos(&thread.todos))
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    Ok(LanguageModelToolResultContent::from(todos))
+                }
+                "update_todo" => {
+                    let id = input
+                        .id
+                        .ok_or_else(|| anyhow::anyhow!("id is required for update_todo"))
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    log::info!("Todo tool: updating todo id={}", id);
+                    let mut found = false;
+                    thread
+                        .update(cx, |thread: &mut Thread, _| {
+                            if let Some(todo) = thread.todos.iter_mut().find(|t| t.id == id) {
+                                if let Some(status) = &input.status {
+                                    if let Some(s) = parse_status(status) {
+                                        todo.status = s;
+                                    }
+                                }
+                                if let Some(priority) = &input.priority {
+                                    if let Some(p) = parse_priority(priority) {
+                                        todo.priority = p;
+                                    }
+                                }
+                                if let Some(text) = &input.text {
+                                    todo.text = text.clone();
+                                }
+                                found = true;
                             }
-                        }
-                        if let Some(priority) = &input.priority {
-                            if let Some(p) = parse_priority(priority) {
-                                todo.priority = p;
-                            }
-                        }
-                        if let Some(text) = &input.text {
-                            todo.text = text.clone();
-                        }
-                        found = true;
+                        })
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    sync_plan(&thread, &acp_thread, cx).map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    let todos = thread
+                        .read_with(cx, |thread: &Thread, _| format_todos(&thread.todos))
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    if found {
+                        Ok(LanguageModelToolResultContent::from(todos))
+                    } else {
+                        Ok(LanguageModelToolResultContent::from(format!("Todo with id {} not found", id)))
                     }
-                })?;
-                sync_plan(&thread, &acp_thread, cx)?;
-                let todos =
-                    thread.read_with(cx, |thread: &Thread, _| format_todos(&thread.todos))?;
-                if found {
-                    Ok(todos.into())
-                } else {
-                    Ok(format!("Todo with id {} not found", id).into())
                 }
-            }
-            "delete_todo" => {
-                let delete_id = input
-                    .id
-                    .ok_or_else(|| anyhow::anyhow!("id is required for delete_todo"))?;
-                log::info!("Todo tool: deleting todo id={}", delete_id);
-                let mut found = false;
-                thread.update(cx, |thread: &mut Thread, _| {
-                    let initial_len = thread.todos.len();
-                    thread.todos.retain(|t| t.id != delete_id);
-                    found = thread.todos.len() < initial_len;
-                })?;
-                sync_plan(&thread, &acp_thread, cx)?;
-                let todos =
-                    thread.read_with(cx, |thread: &Thread, _| format_todos(&thread.todos))?;
-                if found {
-                    Ok(todos.into())
-                } else {
-                    Ok(format!("Todo with id {} not found", delete_id).into())
+                "delete_todo" => {
+                    let delete_id = input
+                        .id
+                        .ok_or_else(|| anyhow::anyhow!("id is required for delete_todo"))
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    log::info!("Todo tool: deleting todo id={}", delete_id);
+                    let mut found = false;
+                    thread
+                        .update(cx, |thread: &mut Thread, _| {
+                            let initial_len = thread.todos.len();
+                            thread.todos.retain(|t| t.id != delete_id);
+                            found = thread.todos.len() < initial_len;
+                        })
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    sync_plan(&thread, &acp_thread, cx).map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    let todos = thread
+                        .read_with(cx, |thread: &Thread, _| format_todos(&thread.todos))
+                        .map_err(|e| LanguageModelToolResultContent::from(e.to_string()))?;
+                    if found {
+                        Ok(LanguageModelToolResultContent::from(todos))
+                    } else {
+                        Ok(LanguageModelToolResultContent::from(format!("Todo with id {} not found", delete_id)))
+                    }
                 }
+                _ => Ok(LanguageModelToolResultContent::from(format!(
+                    "Unknown command: {}. Use: read_todos, add_todo, update_todo, or delete_todo",
+                    input.command
+                ))),
             }
-            _ => Ok(format!(
-                "Unknown command: {}. Use: read_todos, add_todo, update_todo, or delete_todo",
-                input.command
-            )
-            .into()),
         })
+    }
+
+    fn replay(
+        &self,
+        input: Self::Input,
+        output: Self::Output,
+        _event_stream: ToolCallEventStream,
+        _cx: &mut App,
+    ) -> Result<()> {
+        log::info!("Todo tool replay: command={}", input.command);
+        let _ = output;
+        Ok(())
     }
 }
 

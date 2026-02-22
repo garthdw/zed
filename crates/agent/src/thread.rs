@@ -3,8 +3,8 @@ use crate::{
     DbLanguageModel, DbThread, DeletePathTool, DiagnosticsTool, EditFileTool, FetchTool,
     FindPathTool, GrepTool, ListDirectoryTool, MovePathTool, NowTool, OpenTool, ProjectSnapshot,
     ReadFileTool, RestoreFileFromDiskTool, SaveFileTool, SpawnAgentTool, StreamingEditFileTool,
-    SystemPromptTemplate, Template, Templates, TerminalTool, TodoTool, ToolPermissionDecision,
-    WebSearchTool, decide_permission_from_settings,
+    SystemPromptTemplate, Template, Templates, TerminalTool, Todo, TodoTool,
+    ToolPermissionDecision, WebSearchTool, decide_permission_from_settings,
 };
 use acp_thread::{MentionUri, UserMessageId};
 use action_log::ActionLog;
